@@ -77,24 +77,25 @@ export class LicenseValidator {
    * @throws LicenseError if the license is invalid
    */
   validateKeyAtTime(licenseKey: string, currentTime: Date): LicenseInfo {
-    if (!licenseKey || typeof licenseKey !== 'string') {
-      throw LicenseError.invalidFormat('License key must be a non-empty string');
-    }
-
-    // Check prefix
-    if (!licenseKey.startsWith(LICENSE_PREFIX)) {
-      throw LicenseError.invalidFormat(`License key must start with "${LICENSE_PREFIX}"`);
-    }
-
-    // Remove prefix and decode
-    const encoded = licenseKey.slice(LICENSE_PREFIX.length);
-    let data: Buffer;
-    
     try {
-      data = this.fromBase64Url(encoded);
-    } catch (error) {
-      throw LicenseError.base64Error('Failed to decode license key', error as Error);
-    }
+      if (!licenseKey || typeof licenseKey !== 'string') {
+        throw LicenseError.invalidFormat('License key must be a non-empty string');
+      }
+
+      // Check prefix
+      if (!licenseKey.startsWith(LICENSE_PREFIX)) {
+        throw LicenseError.invalidFormat(`License key must start with "${LICENSE_PREFIX}"`);
+      }
+
+      // Remove prefix and decode
+      const encoded = licenseKey.slice(LICENSE_PREFIX.length);
+      let data: Buffer;
+      
+      try {
+        data = this.fromBase64Url(encoded);
+      } catch (error) {
+        throw LicenseError.base64Error('Failed to decode license key', error as Error);
+      }
 
     // Find the separator
     const separatorIndex = data.indexOf(Buffer.from('.', 'utf8'));
@@ -178,12 +179,29 @@ export class LicenseValidator {
       expiresAt,
       hoursRemaining
     };
+    } catch (error) {
+      // Catch any error that might have escaped and wrap it in LicenseError
+      if (error instanceof LicenseError) {
+        throw error;
+      }
+      
+      // For any other error type (like RangeError), wrap it appropriately
+      if (error instanceof RangeError) {
+        throw LicenseError.base64Error('Invalid license key format', error);
+      }
+      
+      throw LicenseError.invalidData('License validation failed', error as Error);
+    }
   }
 
   /**
    * Convert base64url string to buffer (reverses the encoding from generator)
    */
   private fromBase64Url(str: string): Buffer {
+    if (!str || typeof str !== 'string') {
+      throw new Error('Invalid base64url string: input must be a non-empty string');
+    }
+
     // Add padding if needed
     let padded = str;
     const paddingNeeded = 4 - (str.length % 4);
@@ -197,6 +215,11 @@ export class LicenseValidator {
       .replace(/_/g, '/');
 
     try {
+      // Validate that the string contains only valid base64 characters
+      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) {
+        throw new Error('Invalid base64 characters');
+      }
+      
       return Buffer.from(base64, 'base64');
     } catch (error) {
       throw new Error(`Invalid base64url string: ${error}`);
