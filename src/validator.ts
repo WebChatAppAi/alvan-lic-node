@@ -106,13 +106,14 @@ export class LicenseValidator {
     const payload = data.slice(0, separatorIndex);
     const providedSignature = data.slice(separatorIndex + 1);
 
-    // Verify signature using timing-safe comparison
-    const hmac = createHmac('sha256', this.secretKey);
-    hmac.update(payload);
-    const expectedSignature = hmac.digest();
+    // Verify signature
+    const expectedSignature = createHmac('sha256', this.secretKey)
+      .update(payload)
+      .digest();
 
+    // Use timing-safe comparison to prevent timing attacks
     if (!timingSafeEqual(providedSignature, expectedSignature)) {
-      throw LicenseError.invalidSignature('Signature verification failed');
+      throw LicenseError.invalidSignature('License signature verification failed');
     }
 
     // Parse payload

@@ -105,22 +105,28 @@ describe('alvan-lic Integration Tests', () => {
   });
 
   describe('Tampering Detection', () => {
-    test('should detect various tampering attempts', () => {
+    it('should detect various tampering attempts', () => {
       const generator = new LicenseGenerator(testSecret);
       const validator = new LicenseValidator(testSecret);
-      
-      const license = generator.generateKey(24);
-      
-      // Various tampering attempts
+      const validLicense = generator.generateKey(24);
+
+      // Various tampering attempts that should all fail validation
       const tamperedLicenses = [
-        license.replace(/a/g, 'b'), // Character replacement
-        license + 'X',              // Addition
-        license.slice(0, -1),       // Truncation
-        'alvan-completely-fake-license' // Completely fake
+        validLicense.slice(0, -5) + 'XXXXX', // Change last 5 characters
+        validLicense.replace('alvan-', 'hacked-'), // Change prefix
+        validLicense.substring(0, validLicense.length - 10) + '0123456789', // Change suffix
+        'alvan-' + Buffer.from('fake:data:here').toString('base64url'), // Completely fake but valid base64url
+        validLicense.slice(0, -1), // Truncate one character
+        validLicense + 'X', // Add extra character
       ];
-      
-      tamperedLicenses.forEach(tampered => {
-        expect(() => validator.validateKey(tampered)).toThrow(LicenseError);
+
+      tamperedLicenses.forEach((tampered, index) => {
+        try {
+          validator.validateKey(tampered);
+          fail(`Tampered license ${index + 1} should have thrown an error: ${tampered}`);
+        } catch (error) {
+          expect(error).toBeInstanceOf(LicenseError);
+        }
       });
     });
   });
